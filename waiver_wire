@@ -1,0 +1,205 @@
+library(tidyverse)
+library(nflfastr)
+library(teamcolors)
+library(extrafont)
+library(extrafontdb)
+
+### WR/TE metrics per by week
+wreff_week <- fd %>% 
+  filter(play_type == "pass",
+         down <= 4) %>% 
+  filter(str_detect(desc, paste(c("to 10-", "to 11-","to 12-","to 13-","to 14-","to 15-","to 16-","to 17-","to 18-","to 19-","to 80-","to 81-","to 82-","to 83-","to 84-","to 85-","to 86-","to 87-","to 88-","to 89-"), collapse = "|"))) %>%
+  mutate(racr = yards_gained / air_yards,
+         yac_oe = yards_after_catch - xyac_mean_yardage) %>% 
+  group_by(receiver, posteam, week) %>%
+  filter(week == 2) %>% 
+  summarise(
+    targets = n(),
+    receptions = sum(complete_pass),
+    yards_gained = sum(yards_gained),
+    air_yards = sum(air_yards, na.rm = TRUE),
+    yards_after_catch = sum(yards_after_catch, na.rm = TRUE),
+    adot = air_yards / targets, 
+    yac_oe = mean(yac_oe, na.rm = TRUE),
+    racr = yards_gained / air_yards,
+    xyac_epa = sum(xyac_epa, na.rm = TRUE),
+    xyac_mean_yardage = mean(xyac_mean_yardage, na.rm = TRUE),
+    xyac_median_yardage = mean(xyac_median_yardage, na.rm = TRUE),
+    xyac_success = mean(xyac_success, na.rm = TRUE),
+    xyac_fd = mean(xyac_fd, na.rm = TRUE),
+    ep = mean(ep),
+    total_epa = sum(epa),
+    epa_target = total_epa / targets,
+    epa_reception = total_epa / receptions) %>% 
+  filter(!is.na(receiver), xyac_mean_yardage > 0) %>% 
+  select(-week) %>% 
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr'))
+
+
+### WR/TE Metrics by season
+wreff_season <- fd %>% 
+  filter(play_type == "pass",
+         down <= 4) %>% 
+  filter(str_detect(desc, paste(c("to 10-", "to 11-","to 12-","to 13-","to 14-","to 15-","to 16-","to 17-","to 18-","to 19-","to 80-","to 81-","to 82-","to 83-","to 84-","to 85-","to 86-","to 87-","to 88-","to 89-"), collapse = "|"))) %>%
+  mutate(racr = yards_gained / air_yards,
+         yac_oe = yards_after_catch - xyac_mean_yardage) %>% 
+  group_by(receiver, posteam) %>%
+  summarise(
+    targets = n(),
+    receptions = sum(complete_pass),
+    yards_gained = sum(yards_gained),
+    air_yards = sum(air_yards, na.rm = TRUE),
+    yards_after_catch = sum(yards_after_catch, na.rm = TRUE),
+    adot = air_yards / targets, 
+    yac_oe = mean(yac_oe, na.rm = TRUE),
+    racr = yards_gained / air_yards,
+    xyac_epa = sum(xyac_epa, na.rm = TRUE),
+    xyac_mean_yardage = mean(xyac_mean_yardage, na.rm = TRUE),
+    xyac_median_yardage = mean(xyac_median_yardage, na.rm = TRUE),
+    xyac_success = mean(xyac_success, na.rm = TRUE),
+    xyac_fd = mean(xyac_fd, na.rm = TRUE),
+    ep = mean(ep),
+    total_epa = sum(epa),
+    epa_target = total_epa / targets,
+    epa_reception = total_epa / receptions) %>% 
+  filter(!is.na(receiver), xyac_mean_yardage > 0) %>% 
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr'))
+
+
+### Waiver Wire options by week
+waivers_w <- wreff_week %>% 
+  filter(receiver %in% c(
+    "R.Cobb",
+    "Q.Cephus",
+    "K.Cole",
+    "I.Ford",
+    "S.Sims",
+    "Z.Pascal",
+    "J.Reed",
+    "M.Alie-Cox",
+    "B.Edwards",
+    "D.Byrd",
+    "C.Hogan",
+    "K.Hamler",
+    "V.Jefferson",
+    "A.Humphries",
+    "M.Boykin",
+    "C.Beasley",
+    "B.Berrios"))
+
+### Waiver wire options by season
+waivers_s <- wreff_season %>% 
+  filter(receiver %in% c(
+    "R.Cobb",
+    "Q.Cephus",
+    "K.Cole",
+    "I.Ford",
+    "S.Sims",
+    "Z.Pascal",
+    "J.Reed",
+    "M.Alie-Cox",
+    "B.Edwards",
+    "D.Byrd",
+    "C.Hogan",
+    "K.Hamler",
+    "V.Jefferson",
+    "A.Humphries",
+    "M.Boykin",
+    "C.Beasley",
+    "B.Berrios"))
+
+### Plot Wide Receiver Opportunities by week
+w3opp_week <- ggplot() +
+  geom_point(data = wreff_week, mapping = aes(x = adot, y = xyac_mean_yardage, size = targets), color = "lightgrey", alpha = 0.6) +
+  geom_point(data = waivers_w, mapping = aes(x = adot, y = xyac_mean_yardage, size = targets), shape = 21, color = waivers_w$team_color2, fill = waivers_w$team_color, alpha = 0.8) +
+  stat_smooth(data = wreff_week, mapping = aes(x = adot, y = xyac_mean_yardage), method = "lm", geom = "line") +
+  geom_label_repel(data = waivers_w, label = waivers_w$receiver, mapping = aes(x = adot, y = xyac_mean_yardage), size = 3) +
+  scale_x_continuous("Average Depth of Target", limits = c(-5, 30),
+                     breaks = c(-5, 0, 5, 10, 15, 20, 25, 30)) +
+  scale_y_continuous("Mean xYAC", limits = c(2, 12), breaks = c(2, 4, 6, 8, 10, 12)) +
+  scale_size(range = c(2, 9), name = "Targets")+
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  ggtitle("Receiving Opportunity - Week 3 Waiver Wire Options", subtitle = "Week 2 Performance, bubble size = Week 2 Targets")+
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)")
+ggsave("week3waiver_opportunityW.png", w3opp_week , height = 7.5, width = 12, units = "in", dpi = 500)
+
+### Plot Wide Receiver Opportunities by season
+w3opp_season <- ggplot() +
+  geom_point(data = wreff_season, mapping = aes(x = adot, y = xyac_mean_yardage, size = targets), color = "lightgrey", alpha = 0.6) +
+  geom_point(data = waivers_s, mapping = aes(x = adot, y = xyac_mean_yardage, size = targets), shape = 21, color = waivers_s$team_color2, fill = waivers_s$team_color, alpha = 0.8) +
+  stat_smooth(data = wreff_season, mapping = aes(x = adot, y = xyac_mean_yardage), method = "lm", geom = "line") +
+  geom_label_repel(data = waivers_s, label = waivers_s$receiver, mapping = aes(x = adot, y = xyac_mean_yardage), size = 3) +
+  scale_x_continuous("Average Depth of Target", limits = c(-5, 30),
+                     breaks = c(-5, 0, 5, 10, 15, 20, 25, 30)) +
+  scale_y_continuous("Mean xYAC", limits = c(2, 12), breaks = c(2, 4, 6, 8, 10, 12)) +
+  scale_size(range = c(2, 9), name = "Targets")+
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  ggtitle("Receiving Opportunity - Week 3 Waiver Wire Options", subtitle = "Season Performance, bubble size = Total Targets")+
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)")
+ggsave("week3waiver_opportunityS.png", w3opp_season , height = 7.5, width = 12, units = "in", dpi = 500)
+
+### Plot Wide Receiver Efficiency by week
+w3eff_week <- ggplot() +
+  geom_point(data = wreff_week %>% 
+               filter(yac_oe<12.5, yac_oe>-10), mapping = aes(x = racr, y = yac_oe, size = targets), color = "lightgrey", alpha = 0.6) +
+  geom_point(data = waivers_w, mapping = aes(x = racr, y = yac_oe, size = targets), shape = 21, color = waivers_w$team_color2, fill = waivers_w$team_color, alpha = 0.8) +
+  stat_smooth(data = wreff_week, mapping = aes(x = racr, y = yac_oe), method = "lm", geom = "line") +
+  geom_label_repel(data = waivers_w, label = waivers_w$receiver, mapping = aes(x = racr, y = yac_oe), size= 3) +
+  ylab("YAC Over Expected") +
+  scale_x_continuous("RACR", limits = c(0, 3.5), breaks = c(0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5)) +
+  scale_size(range = c(2, 9), name = "Targets") +
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  ggtitle("Receiving Efficiency - Week 3 Waiver Wire Options", subtitle = "Week 2 Performance, bubble size = Week 2 Targets")+
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)")
+ggsave("week3waiver_effW.png", w3eff_week , height = 7.5, width = 12, units = "in", dpi = 500)
+
+### Plot Wide Receiver Efficiency by season
+w3eff_season <- ggplot() +
+  geom_point(data = wreff_season %>% 
+               filter(yac_oe<12.5, yac_oe>-10), mapping = aes(x = racr, y = yac_oe, size = targets), color = "lightgrey", alpha = 0.6) +
+  geom_point(data = waivers_s, mapping = aes(x = racr, y = yac_oe, size = targets), shape = 21, color = waivers_s$team_color2, fill = waivers_s$team_color) +
+  stat_smooth(data = wreff_season, mapping = aes(x = racr, y = yac_oe), method = "lm", geom = "line") +
+  geom_label_repel(data = waivers_s, label = waivers_s$receiver, mapping = aes(x = racr, y = yac_oe), size= 3) +
+  ylab("YAC Over Expected") +
+  scale_x_continuous("RACR", limits = c(0, 3.5), breaks = c(0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5)) +
+  scale_size(range = c(2, 9), name = "Targets") +
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white", color = "black"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA)
+  ) +
+  ggtitle("Receiving Efficiency - Week 3 Waiver Wire Options", subtitle = "Season Performance, bubble size = Total Targets")+
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)")
+ggsave("week3waiver_effS.png", w3eff_season , height = 7.5, width = 12, units = "in", dpi = 500)
