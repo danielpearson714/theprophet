@@ -1,6 +1,6 @@
 library(tidyverse)
 library(nflfastR)
-library(teamcolors)_
+library(teamcolors)
 library(extrafontDB)
 library(extrafont)
 library(directlabels)
@@ -51,7 +51,7 @@ team_line <- fd2020 %>%
   geom_line(data = team_line, mapping = aes(x = target_number, y = cum_epa, group = receiver), color = "lightgrey", size = 1.5) + ### Team line
   geom_line(data = player_line, mapping = aes(x = target_number, y = cum_epa, group = receiver), color = player_line$team_color, size = 1.5) + ### Player line
   facet_wrap(~posteam) +
-  geom_dl(data = sean, aes(x = target_number, y = cum_epa, label = receiver), method = "last.points") + # Direct label at player line ends
+  geom_dl(data = sean, aes(x = target_number, y = cum_epa, label = receiver), method = "last.points") + ### Direct label at player line ends
   theme(
     legend.position = "none",
     text = element_text(family = "Lucida Console"),
