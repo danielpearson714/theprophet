@@ -1,0 +1,72 @@
+library(tidyverse)
+library(nflfastR)
+library(teamcolors)_
+library(extrafontDB)
+library(extrafont)
+library(directlabels)
+
+player_line <- fd2020 %>% 
+  filter(play_type == "pass",
+         !is.na(epa),
+         !is.na(air_yards))%>% 
+  group_by(posteam) %>% 
+  mutate(target_number_team = row_number(), 
+         cum_epa_team = cumsum(epa),
+         cum_airyards_team = cumsum(air_yards),
+         target_total_team = n()) %>% 
+  group_by(receiver) %>% 
+  mutate(target_number = row_number(),
+         targets = n(),
+         cum_epa = cumsum(epa),
+         cum_airyards = cumsum(air_yards),
+         cum_airyards_share = cummean(cum_airyards / cum_airyards_team)*100,
+         cum_target_share = cummean(target_number / target_number_team)*100) %>% 
+  ungroup() %>%
+  filter(receiver %in% c("T.Higgins", "C.Lamb", "J.Jefferson", "L.Shenault Jr.")) %>% ### Choose which players you want to view
+  arrange(posteam, receiver, target_number)
+  
+team_line <- fd2020 %>% 
+  filter(play_type == "pass",
+         !is.na(epa),
+         !is.na(air_yards))%>% 
+  group_by(posteam) %>% 
+  mutate(target_number_team = row_number(), 
+         cum_epa_team = cumsum(epa),
+         cum_airyards_team = cumsum(air_yards),
+         target_total_team = n()) %>% 
+  group_by(receiver) %>% 
+  mutate(target_number = row_number(),
+         targets = n(),
+         cum_epa = cumsum(epa),
+         cum_airyards = cumsum(air_yards),
+         cum_airyards_share = cummean(cum_airyards / cum_airyards_team)*100,
+         cum_target_share = cummean(target_number / target_number_team)*100) %>% 
+  ungroup() %>%
+  filter(position %in% c("WR", "TE"),
+         posteam %in% c("CIN", "DAL", "MIN", "JAX")) %>% ### Make sure your teams match the players you chose
+  arrange(posteam, receiver, target_number)
+
+### Create the faceted plot w/ geom_line
+ epa_plot <- ggplot(sean) + 
+  geom_line(data = team_line, mapping = aes(x = target_number, y = cum_epa, group = receiver), color = "lightgrey", size = 1.5) + ### Team line
+  geom_line(data = player_line, mapping = aes(x = target_number, y = cum_epa, group = receiver), color = player_line$team_color, size = 1.5) + ### Player line
+  facet_wrap(~posteam) +
+  geom_dl(data = sean, aes(x = target_number, y = cum_epa, label = receiver), method = "last.points") + # Direct label at player line ends
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 18),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA),
+    strip.background = element_rect(fill = "black", color = "white"),
+    strip.text = element_text(size = 16, color = "white")
+    ) +
+  scale_y_continuous("Cumulative EPA (Expected Points Added)", limits = c(-15, 40), breaks = c(-10, 0, 10, 20, 30, 40)) +
+  scale_x_continuous("Target Number", limits = c(0, 55), breaks = c(0, 10, 20, 30, 40, 50)) +
+  ggtitle("Cumulative EPA by Target - 2020 Season (through Week 6)", subtitle = "Tee Higgins, CeeDee Lamb, Justin Jefferson, Laviska Shenault") +
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)") ### Give yourself some credit/publicity
+
+ggsave("epa_plot.png", epa_plot , height = 9, width = 12, units = "in", dpi = 500) ### Save your plot
