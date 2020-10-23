@@ -4,7 +4,19 @@ library(teamcolors)
 library(extrafontDB)
 library(extrafont)
 library(directlabels)
+library(furrr)
 
+roster <- fast_scraper_roster(2020) ### Roster df with positions
+fd <- readRDS(url('https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_2020.rds')) ### nflfastR play-by-play data
+fd2020 <- fd %>% 
+  decode_player_ids() ### Decode player IDs from roster
+fd2020 <- fd2020 %>% 
+  filter(!is.na(receiver_id),
+         play_type == "pass") %>%
+  left_join(roster, by = c('receiver_id' = 'gsis_id')) %>% ### join roster data
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr')) ### join team colors and logos
+
+### Player line with team colors
 player_line <- fd2020 %>% 
   filter(play_type == "pass",
          !is.na(epa),
@@ -24,7 +36,8 @@ player_line <- fd2020 %>%
   ungroup() %>%
   filter(receiver %in% c("T.Higgins", "C.Lamb", "J.Jefferson", "L.Shenault Jr.")) %>% ### Choose which players you want to view
   arrange(posteam, receiver, target_number)
-  
+
+###Lines for all players (will be grey on plot)
 team_line <- fd2020 %>% 
   filter(play_type == "pass",
          !is.na(epa),
