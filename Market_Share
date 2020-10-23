@@ -1,0 +1,80 @@
+library(tidyverse)
+library(nflfastR)
+library(teamcolors)
+library(extrafontDB)
+library(extrafont)
+library(ggrepel)
+library(furrr)
+
+roster <- fast_scraper_roster(2020) ### Roster df with positions
+fd <- readRDS(url('https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_2020.rds')) ### nflfastR play-by-play data
+fd2020 <- fd %>% 
+  decode_player_ids() ### Decode player IDs from roster
+
+### This is my master dataset for pass plays
+fd2020 <- fd2020 %>% 
+  filter(!is.na(receiver_id),
+         play_type == "pass") %>%
+  left_join(roster, by = c('receiver_id' = 'gsis_id')) %>% ### join roster data
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr')) ### join team colors and logos
+
+### Create dataframe w/ many receiving metrics
+market_share <- fd2020 %>% 
+  filter(play_type == "pass",
+         down <= 4) %>% 
+  mutate(racr = yards_gained / air_yards,
+         yac_oe = yards_after_catch - xyac_mean_yardage) %>% 
+  group_by(receiver, posteam) %>%
+  mutate(targets = n(),
+         total_airyards = sum(air_yards, na.rm = TRUE)) %>% 
+  group_by(posteam) %>% 
+  mutate(team_targets = n(),
+         team_airyards = sum(air_yards, na.rm = TRUE)) %>% 
+  group_by(receiver, posteam) %>% 
+  summarise(
+    targets = mean(targets),
+    team_targets = mean(team_targets),
+    total_airyards = mean(total_airyards),
+    team_airyards = mean(team_airyards),
+    target_share = (targets/team_targets)*100,
+    airyards_share = (total_airyards / team_airyards)*100,
+    receptions = sum(complete_pass),
+    yards_gained = sum(yards_gained),
+    air_yards = sum(air_yards, na.rm = TRUE),
+    yards_after_catch = sum(yards_after_catch, na.rm = TRUE),
+    adot = air_yards / targets, ### Average Depth of Target
+    yac_oe = mean(yac_oe, na.rm = TRUE), ### Yards After Catch Over Expected
+    racr = yards_gained / air_yards, ### Receiver Air Yard Conversion Ratio
+    xyac_epa = sum(xyac_epa, na.rm = TRUE),
+    xyac_mean_yardage = mean(xyac_mean_yardage, na.rm = TRUE), ### Mean Expected Yards After Catch
+    xyac_median_yardage = mean(xyac_median_yardage, na.rm = TRUE),
+    xyac_success = mean(xyac_success, na.rm = TRUE),
+    xyac_fd = mean(xyac_fd, na.rm = TRUE),
+    ep = mean(ep),
+    total_epa = sum(epa),
+    epa_target = total_epa / targets,
+    epa_reception = total_epa / receptions) %>% 
+  filter(!is.na(receiver), xyac_mean_yardage > 0, targets > 24) %>% 
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr')) 
+
+### Create your plot
+marshare <- ggplot(data = market_share, aes(x = target_share, y = airyards_share, size = targets)) +
+  geom_point(shape = 21, color = market_share$team_color2, fill = market_share$team_color, alpha = 0.8) +
+  geom_label_repel(data = market_share, aes(x = target_share, y = airyards_share, label = receiver), color = market_share$team_color, size = 3) +
+  ggtitle("Target Share vs Air Yard Share - 2020 Season (through TNF Week 7)", subtitle = "bubble size = total targets (min. 24 targets)") +
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)") + ### Give yourself some credit/publicity
+  theme(
+    legend.position = "none",
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(color = "light grey"),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 18),
+    axis.text = element_text(size = 12),
+    panel.border = element_rect(color = "black", fill = NA)
+    ) +
+  scale_size(range = c(3, 10)) + ### Point size range
+  scale_x_continuous("Target Share (%)") +
+  scale_y_continuous("Air Yard Share (%)", limits = c(-2.5, 50), breaks = c(0, 10, 20, 30, 40, 50))
+
+ggsave("marshare.png", marshare , height = 8, width = 12, units = "in", dpi = 500)
