@@ -6,7 +6,6 @@ library(teamcolors)
 library(extrafont)
 library(extrafontDB)
 
-
 ### Import roster data
 roster9 <- fast_scraper_roster((2012:2020)) 
 seasons3 <- 2012:2020 
