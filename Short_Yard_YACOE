@@ -1,0 +1,68 @@
+library(nflfastR)
+library(tidyverse)
+library(furrr)
+library(RColorBrewer)
+library(teamcolors)
+library(extrafont)
+library(extrafontDB)
+
+
+### Import roster data
+roster9 <- fast_scraper_roster((2012:2020)) 
+seasons3 <- 2012:2020 
+
+### Play-by-play season data  from nflfastR
+pbp9 <- map_df(seasons3, function(x) {
+  readRDS(
+    url(
+      paste0("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_",x,".rds")
+    )
+  )
+})
+
+pbp12 <- pbp9 %>% 
+  decode_player_ids() %>%  
+  filter(!is.na(receiver_id)) %>% 
+  left_join(roster9, by = c('receiver_id' = 'gsis_id')) %>% 
+  left_join(teams_colors_logos, by = c('posteam' = 'team_abbr')) %>% 
+pbp12 <- pbp12 %>% 
+  distinct(desc, .keep_all = TRUE)
+  
+### Create plot
+wr_plot <- pbp12 %>% 
+  filter(week <= 17,
+         down <= 4, 
+         play_type == "pass",
+         complete_pass == 1,
+         !is.na(air_yards),
+         !is.na(xyac_mean_yardage),
+         !is.na(yards_after_catch))%>%
+  mutate(yac_oe = yards_after_catch - xyac_mean_yardage) %>% 
+  filter(position == "RB", between(air_yards, -5, 5)) %>% 
+  add_count(season.x) %>% 
+  ggplot(aes(x = air_yards)) +
+  geom_smooth(aes(y = yards_after_catch, fill = "YAC", color = "YAC"), alpha = 0.3, size = 2) +
+  geom_smooth(aes(y = xyac_mean_yardage, fill = "xYAC", color = "xYAC"), alpha = 0.3, size = 2) +
+  scale_fill_manual("", values = c("firebrick3", "goldenrod")) +
+  scale_color_manual("", values = c("firebrick3", "goldenrod")) +
+  facet_wrap(~season.x) +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 14),
+    legend.key.size = unit(2, "line"),
+    text = element_text(family = "Lucida Console"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(color = "light grey"),
+    panel.border = element_rect(fill = NA, size = 3),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 13, color = "black"),
+    strip.background = element_rect(fill = "black", color = "black", size = 3),
+    strip.text = element_text(size = 16, color = "white"),
+    plot.title = element_text(size = 18),
+  ) +
+  scale_y_continuous("Yards After Catch: Expected & Actual") +
+  scale_x_continuous("Air Yards") +
+  ggtitle("Expected vs Actual Yards After Catch by Depth of Target - Wide Receivers", subtitle = "All Completed Passes between -5 and 5 Air Yards (2012-2020)") +
+  labs(caption = "Data: @nflfastR | Visualization: Daniel Pearson (@itsdanpearson)") +
+  geom_label(mapping = aes(x = 2.5, y = 10, group = season.x, label = paste("n = ", n)))
+ggsave("wr_xyac.png", wr_plot , height = 9, width = 13, units = "in", dpi = 500)
